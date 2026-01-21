@@ -1,3 +1,6 @@
+// =========================================
+// 全局变量 / 录音与音效
+// =========================================
 let mic, recorder, soundFileBucket;
 let activeEchoes = [];
 let isStarted = false;
@@ -11,20 +14,28 @@ let soundLibrary = {};
 let spatialZones = [];
 let speechRec;
 
+// 全局背景粒子
 let globalParticles = [];
 let showBackgroundParticles = true;
 
+// =========================================
+// setup() 初始化
+// =========================================
 function setup() {
   createCanvas(windowWidth, windowHeight);
+
+  // 确保 AudioContext 已经启动
   if (getAudioContext().state !== 'running') {
     getAudioContext().resume();
   }
 
+  // 背景图加载
   bgImg = loadImage('collage.jpg', 
-    () => console.log("✅ BG Loaded"), 
-    () => console.log("❌ BG Failed")
+    () => console.log("✅ 背景图加载成功"), 
+    () => console.log("❌ 背景图加载失败")
   );
 
+  // 设置空间区域
   spatialZones = [
     { id:"garden", name:"Garden", x:0.5, y:0.9, color:[50,50,50], ambient:'yuanzi.WAV', p:{rate:1.0, reverb:1.0} },
     { id:"stairs", name:"Stairwell", x:0.55, y:0.4, color:[255,200,0], ambient:'loudao.MP3', p:{rate:0.6, reverb:6.0} },
@@ -33,9 +44,11 @@ function setup() {
     { id:"corridor", name:"Corridor", x:0.5, y:0.75, color:[200,50,50], ambient:'titiepi.mp3', p:{rate:0.8, reverb:3.0} }
   ];
 
+  // 允许加载这些音频格式
   soundFormats('mp3','wav','m4a');
   let files = ['yuanzi.WAV','loudao.MP3','tangbao.MP3','baojin.mp3','titiepi.mp3'];
   
+  // 预加载声音文件
   files.forEach(f=>{
     loadSound(f, s=>{
       soundLibrary[f]=s;
@@ -44,9 +57,11 @@ function setup() {
     });
   });
 
+  // 混响
   reverb = new p5.Reverb();
   reverb.set(3, 2);
 
+  // 初始化麦克风和录音
   mic = new p5.AudioIn();
   mic.start();
 
@@ -54,19 +69,26 @@ function setup() {
   recorder.setInput(mic);
   soundFileBucket = new p5.SoundFile();
 
+  // 语音识别初始化
   initSpeech();
 
+  // 背景粒子初始化
   for(let i=0; i<150; i++) {
     globalParticles.push(new GlobalParticle());
   }
 
+  // 绑定开始按钮
   let btn = select('#start-btn');
   if(btn) btn.mousePressed(startExhibition);
 }
 
+// =========================================
+// draw() 渲染循环
+// =========================================
 function draw() {
   background(240);
 
+  // 背景图渲染
   if(bgImg){
     push();
     translate(width/2,height/2);
@@ -79,9 +101,11 @@ function draw() {
 
   if(!isStarted) return;
 
+  // 半透明遮罩
   noStroke(); fill(0, 80); 
   rect(0,0,width,height);
 
+  // 背景粒子
   if(showBackgroundParticles) {
     for(let p of globalParticles) {
       p.update();
@@ -89,6 +113,7 @@ function draw() {
     }
   }
 
+  // 实时回声显示
   for(let i=activeEchoes.length-1;i>=0;i--){
     let e = activeEchoes[i];
     e.update();
@@ -100,6 +125,7 @@ function draw() {
     }
   }
 
+  // 文字提示
   if(liveText !== ""){
     push();
     translate(width/2, height - 80);
@@ -114,23 +140,35 @@ function draw() {
     pop();
   }
 
+  // 录音状态小红点
   if(isRecordingState && liveText === ""){
     fill(255,0,0); noStroke(); 
     circle(width/2, height-40, 15);
   }
 }
 
+// =========================================
+// 开始展览
+// =========================================
 function startExhibition(){
   if (getAudioContext().state !== 'running') {
     getAudioContext().resume();
   }
   userStartAudio();
   isStarted = true;
+
+  // 隐藏介绍页
   select('#intro-page').style('display', 'none');
+
+  // 停掉所有预加载音效
   for(let k in soundLibrary) if(soundLibrary[k].isPlaying()) soundLibrary[k].stop();
+
   if(speechRec) speechRec.start();
 }
 
+// =========================================
+// 创建实时回声
+// =========================================
 function createUserEcho(text, recordedSound){
   liveText = "";
 
@@ -143,18 +181,18 @@ function createUserEcho(text, recordedSound){
     let amb = soundLibrary[z.ambient];
     amb.loop();
     amb.setVolume(0);
-    amb.fade(0.1, 0.5); 
+    amb.fade(0.1, 0.5);
   }
 
   if (getAudioContext().state !== 'running') getAudioContext().resume();
 
   if(recordedSound && recordedSound.duration() > 0) {
       recordedSound.rate(z.p.rate);
-      recordedSound.setVolume(3.0); 
+      recordedSound.setVolume(3.0);
       recordedSound.play();           
       reverb.process(recordedSound, z.p.reverb, 2);
   } else {
-      console.log("⚠️ usless sound clip");
+      console.log("⚠️ Invalid audio clip");
   }
 
   activeEchoes.push(
@@ -164,13 +202,20 @@ function createUserEcho(text, recordedSound){
   soundFileBucket = new p5.SoundFile();
 }
 
+// =========================================
+// 停止所有环境音
+// =========================================
 function stopAllAmbients(){
   for(let k in soundLibrary) soundLibrary[k].fade(0, 0.2);
 }
+
 function fadeAmbient(name, v){
   if(soundLibrary[name]) soundLibrary[name].fade(v, 1.0);
 }
 
+// =========================================
+// 背景粒子类
+// =========================================
 class GlobalParticle {
   constructor() {
     this.x = random(width);
@@ -197,6 +242,9 @@ class GlobalParticle {
   }
 }
 
+// =========================================
+// 实时回声类
+// =========================================
 class RealtimeEcho{
   constructor(text,x,y,color,zoneName,ambient,sound){
     this.text=text; this.x=x; this.y=y;
@@ -263,6 +311,9 @@ class RealtimeEcho{
   }
 }
 
+// =========================================
+// 语音识别初始化
+// =========================================
 function initSpeech(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR) return;
@@ -272,6 +323,7 @@ function initSpeech(){
   speechRec.interimResults = true; 
   speechRec.lang = 'zh-CN';
 
+  // 开始说话时
   speechRec.onspeechstart = () => {
     if(!isRecordingState && isStarted){
       isRecordingState = true;
@@ -279,6 +331,7 @@ function initSpeech(){
     }
   };
 
+  // 语音识别结果
   speechRec.onresult = (e) => {
     let r = e.results[e.resultIndex];
     let txt = r[0].transcript;
@@ -296,6 +349,7 @@ function initSpeech(){
     }
   };
 
+  // 结束识别后自动重启
   speechRec.onend = () => {
     isRecordingState = false;
     liveText = "";
@@ -305,6 +359,9 @@ function initSpeech(){
   };
 }
 
+// =========================================
+// 窗口尺寸变化
+// =========================================
 function windowResized(){
   resizeCanvas(windowWidth,windowHeight);
 }
